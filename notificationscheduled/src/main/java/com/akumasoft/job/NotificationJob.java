@@ -11,9 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import com.akumasoft.model.queque;
+import com.akumasoft.model.programados;
+import com.akumasoft.model.emailsBloqueados;
 import com.akumasoft.model.historico;
 import com.akumasoft.repository.quequeRepository;
+import com.akumasoft.repository.programadosRepository;
 import com.akumasoft.repository.historicoRepository;
+import com.akumasoft.repository.emailsBloqueadosRepository;
 
 @Component
 @RequiredArgsConstructor
@@ -21,12 +25,56 @@ import com.akumasoft.repository.historicoRepository;
 public class NotificationJob {
     
     private final quequeRepository notificationScheduleRepository;
+    private final programadosRepository programadosRepository;
+    private final emailsBloqueadosRepository emailsBloqueadosRepository;
     private final JavaMailSender mailSender;
     private final historicoRepository historicoRepository;
     
+    @Scheduled(fixedDelay = 300000) // Ejecutar cada 5 minutos
+    @Transactional
+    public void transferirProgramadosAQueue() {
+        List<programados> notificacionesProgramadas = programadosRepository
+            .findByProgramado_dateLessThanEqualAndProcesadaFalse(java.time.LocalDateTime.now());
+
+        if (notificacionesProgramadas.isEmpty()) {
+            log.info("No hay notificaciones programadas para transferir a queue.");
+            return;
+        }
+        
+        log.info("Transfiriendo {} notificaciones programadas a queue.", notificacionesProgramadas.size());
+        
+        for (programados notificacionProgramada : notificacionesProgramadas) {
+            try {
+                // Crear nueva entrada en queue
+                queque nuevaQueue = new queque();
+                nuevaQueue.setSolicitudId(notificacionProgramada.getSolicitudId());
+                nuevaQueue.setAsunto(notificacionProgramada.getAsunto());
+                nuevaQueue.setContentHTML(notificacionProgramada.getContentHTML());
+                nuevaQueue.setCorreo_destino(notificacionProgramada.getCorreo_destino());
+                nuevaQueue.setCorreo_cc(notificacionProgramada.getCorreo_cc());
+                nuevaQueue.setCorreo_bcc(notificacionProgramada.getCorreo_bcc());
+                nuevaQueue.setStatus("PENDING");
+                nuevaQueue.setCreacion_date(java.time.LocalDateTime.now());
+                nuevaQueue.setEnvio_date(notificacionProgramada.getProgramado_date());
+                nuevaQueue.setRetry_count(0);
+                nuevaQueue.setProcesada(false);
+                
+                notificationScheduleRepository.save(nuevaQueue);
+                
+                // Marcar como procesada en programados
+                notificacionProgramada.setProcesada(true);
+                programadosRepository.save(notificacionProgramada);
+                
+                log.info("Notificación programada {} transferida exitosamente a queue.", notificacionProgramada.getId());
+            } catch (Exception e) {
+                log.error("Error al transferir la notificación programada {}: {}", 
+                    notificacionProgramada.getId(), e.getMessage());
+            }
+        }
+    }
+    
     @Scheduled(fixedDelay = 60000) // Ejecutar cada minuto
     @Transactional
-
     public void procesar(){
         List<queque> notificacionesPendientes = notificationScheduleRepository.findByStatus("PENDING"); 
         if (notificacionesPendientes.isEmpty()) {
@@ -35,8 +83,15 @@ public class NotificationJob {
         }
         
         log.info("Procesando {} notificaciones pendientes.", notificacionesPendientes.size());
+        List<emailsBloqueados> bloqueados = emailsBloqueadosRepository.findAll();
+
 
         for (queque notificacion : notificacionesPendientes) {
+            if (bloqueados.stream().anyMatch(b -> b.getEmail().equals(notificacion.getCorreo_destino()))) {
+                log.info("El correo {} está bloqueado. Saltando notificación {}.", notificacion.getCorreo_destino(), notificacion.getId());
+                continue;
+            }
+
             try {
                 // Aquí iría la lógica para enviar el correo utilizando mailSender
                  SimpleMailMessage message = new SimpleMailMessage();
