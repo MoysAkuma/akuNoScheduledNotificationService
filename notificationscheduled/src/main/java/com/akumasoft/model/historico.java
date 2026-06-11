@@ -11,15 +11,15 @@ import jakarta.persistence.Table;
 import lombok.Data;
 
 @Entity
-@Table(name = "queque")
+@Table(name = "historico")
 @Data
-
-public class queque {
+public class historico {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
     
     private UUID solicitudId;
+    private UUID plantillaId;
     private String asunto;
     private String contentHTML;
     

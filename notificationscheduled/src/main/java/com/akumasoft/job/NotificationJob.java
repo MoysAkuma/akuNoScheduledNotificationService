@@ -1,6 +1,5 @@
 package com.akumasoft.job;
 
-import java.beans.Transient;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -12,15 +11,18 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import com.akumasoft.model.queque;
-import com.akumasoft.repository.NotificationScheduleRepository;
+import com.akumasoft.model.historico;
+import com.akumasoft.repository.quequeRepository;
+import com.akumasoft.repository.historicoRepository;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationJob {
     
-    private final NotificationScheduleRepository notificationScheduleRepository;
+    private final quequeRepository notificationScheduleRepository;
     private final JavaMailSender mailSender;
+    private final historicoRepository historicoRepository;
     
     @Scheduled(fixedDelay = 60000) // Ejecutar cada minuto
     @Transactional
@@ -55,5 +57,45 @@ public class NotificationJob {
                 notificationScheduleRepository.save(notificacion);
             }
         }
+    }
+    
+
+    @Scheduled(cron = "0 0 12 * * *") // Ejecutar todos los días a las 12:00 PM
+    @Transactional
+    public void createHistorico() {
+        List<queque> notificacionesEnviadasList = notificationScheduleRepository.findByStatus("SENT"); 
+        if (notificacionesEnviadasList.isEmpty()) {
+            log.info("No hay notificaciones enviadas para crear el histórico.");
+            return;
+        }
+        
+        log.info("Creando histórico para {} notificaciones enviadas.", notificacionesEnviadasList.size());
+        
+        // Guardar copia en histórico
+        for (queque notificacion : notificacionesEnviadasList) {
+            historico hist = new historico();
+            hist.setSolicitudId(notificacion.getSolicitudId());
+            hist.setAsunto(notificacion.getAsunto());
+            hist.setContentHTML(notificacion.getContentHTML());
+            hist.setStatus(notificacion.getStatus());
+            hist.setCorreo_destino(notificacion.getCorreo_destino());
+            hist.setCorreo_cc(notificacion.getCorreo_cc());
+            hist.setCorreo_bcc(notificacion.getCorreo_bcc());
+            hist.setError_message(notificacion.getError_message());
+            hist.setRetry_count(notificacion.getRetry_count());
+            hist.setEnvio_date(notificacion.getEnvio_date());
+            hist.setCreacion_date(notificacion.getCreacion_date());
+            hist.setSent_date(notificacion.getSent_date());
+            hist.setProcesada(notificacion.isProcesada());
+            
+            historicoRepository.save(hist);
+        }
+        
+        log.info("Histórico creado exitosamente. Vaciando tabla queque...");
+        
+        // Vaciar la tabla queque
+        notificationScheduleRepository.deleteAll();
+        
+        log.info("Tabla queque vaciada. Proceso de histórico completado.");
     }
 }

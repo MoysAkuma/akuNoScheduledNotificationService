@@ -1,5 +1,4 @@
 package com.akumasoft.model;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,26 +12,17 @@ import lombok.Data;
 @Entity
 @Table(name = "queque")
 @Data
-
-public class queque {
+public class programados {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
-    
     private UUID solicitudId;
     private String asunto;
     private String contentHTML;
-    
-    private String status;
     private String correo_destino;
     private String correo_cc;
     private String correo_bcc;
 
-    private String error_message;
-    private int retry_count;
-
-    private LocalDateTime envio_date;
-    private LocalDateTime creacion_date;
-    private LocalDateTime  sent_date;
+    private LocalDateTime  programado_date;
     private boolean procesada;
 }
