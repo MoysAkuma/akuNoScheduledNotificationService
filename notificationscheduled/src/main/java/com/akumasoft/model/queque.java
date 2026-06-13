@@ -31,8 +31,8 @@ public class queque {
     private String error_message;
     private int retry_count;
 
-    private LocalDateTime envio_date;
-    private LocalDateTime creacion_date;
-    private LocalDateTime  sent_date;
+    private LocalDateTime fechaEnvio;
+    private LocalDateTime fechaCreado;
+    private LocalDateTime  fechaEnviado;
     private boolean procesada;
 }
